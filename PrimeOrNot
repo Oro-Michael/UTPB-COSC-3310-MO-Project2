@@ -1,0 +1,109 @@
+//online compiler used https://onecompiler.com/
+//I could not get ubuntu running properly
+//If you were to count "is prime. is not prime." as an answer for prime numbers, a couple of numbers are wrong at the beginning
+//ChatGPT is used for line details, as it can describe code better than I ever can. https://chatgpt.com/share/675e45d9-acc8-8002-9b7c-e508473def04
+section .data
+  nums db '123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899'  ; Define a string of numbers (digits 1-99)
+  newline db 0x0a, 0x00  ; Define newline character for output formatting
+  nl_len equ $ - newline  ; Calculate the length of the newline string
+  prime_msg db " is prime.", 0x00  ; Message displayed when a number is prime
+  notprime_msg db " is not prime.", 0x00  ; Message displayed when a number is not prime
+  pn_len equ $ - prime_msg  ; Calculate the length of the prime message
+  np_len equ $ - notprime_msg  ; Calculate the length of the non-prime message
+
+section .text
+global _start
+
+_start:
+  xor rbp, rbp  ; Initialize the loop counter (rbp is the index of the number being processed)
+
+loop_head:
+  cmp rbp, 189  ; Compare the current counter (rbp) with 189, to loop over the 1-99 numbers
+  jge loop_exit  ; Exit the loop when we've processed all the numbers
+
+  mov rcx, nums  ; Load the base address of 'nums' into rcx
+  add rcx, rbp  ; Offset rcx by the current counter value (rbp) to point to the current number in 'nums'
+  mov rdx, 1  ; Assume one digit by default (to handle single-digit numbers)
+  cmp rbp, 9  ; Compare if the number is a single digit (less than 10)
+  jl one_digit  ; Jump to one_digit if it's a single digit
+  add rdx, 1  ; Otherwise, this is a two-digit number, so set rdx to 2 (representing 2 digits)
+
+one_digit:
+  mov rbx, 1  ; Initialize rbx as a flag or counter for a single-digit number
+  mov rax, 4  ; Set rax to 4 (system call number for 'write')
+  add rbp, rdx  ; Increment the loop counter by the number of digits in the current number
+  int 0x80  ; Perform a system call to output the number (system call to write)
+
+  xor rax, rax  ; Clear rax register
+  mov bl, byte [rcx]  ; Load the byte (character) of the current digit
+  sub bl, '0'  ; Convert the character to an integer (by subtracting '0')
+  movzx rax, bl  ; Zero-extend the value into rax (now holding the current digit as an integer)
+
+  cmp rdx, 2  ; Check if this is a single-digit or two-digit number
+  jne prime_check  ; If it's a single-digit number, skip the two-digit logic
+  mov dl, byte [rcx + 1]  ; Load the second digit of the two-digit number
+  sub dl, '0'  ; Convert the second digit to an integer
+  imul rax, rax, 10  ; Multiply rax by 10 (move left by one decimal place to make room for the second digit)
+  add rax, rdx  ; Add the second digit to form the full two-digit number
+
+prime_check:
+  mov rsi, rax  ; Store the current number in rsi (for prime checking)
+  call check_prime  ; Call the prime check function
+
+  call newline_text  ; Call to print the newline character after each number's output
+
+  jmp loop_head  ; Jump back to the start of the loop to process the next number
+
+check_prime:
+  cmp rsi, 2  ; Compare the number with 2 (the smallest prime number)
+  je prime_text  ; If the number is 2, it's prime
+  cmp rsi, 1  ; Compare the number with 1 (which is not prime)
+  jle not_prime_text  ; If the number is 1 or less, it's not prime
+
+  mov rcx, 2  ; Initialize rcx as 2, the first possible divisor
+check_divisor:
+  mov rax, rsi  ; Move the number to rax
+  xor rdx, rdx  ; Clear rdx (required before division)
+  div rcx  ; Divide rsi by rcx (checking for divisibility)
+  cmp rdx, 0  ; Check if the remainder (rdx) is 0 (i.e., divisible)
+  je not_prime_text  ; If divisible, it is not prime, jump to the not_prime_text
+  inc rcx  ; Increment the divisor
+  mov rax, rcx  ; Load the new divisor into rax
+  imul rax, rcx  ; Calculate the square of the divisor
+  cmp rax, rsi  ; Check if the divisor squared is larger than the number
+  jl check_divisor  ; If it's smaller, continue checking with the next divisor
+
+  jmp prime_text  ; If no divisors were found, the number is prime
+
+prime_text:
+  mov rdx, pn_len  ; Set rdx to the length of the prime message
+  mov rcx, prime_msg  ; Load the address of the prime message into rcx
+  mov rbx, 1  ; Set rbx to 1 for the file descriptor (stdout)
+  mov rax, 4  ; Set rax to 4 (system call number for 'write')
+  int 0x80  ; System call to output the prime message
+
+  jmp loop_reset  ; Jump to the loop reset after printing the prime message
+
+not_prime_text:
+  mov rdx, np_len  ; Set rdx to the length of the "not prime" message
+  mov rcx, notprime_msg  ; Load the address of the "not prime" message into rcx
+  mov rbx, 1  ; Set rbx to 1 for stdout
+  mov rax, 4  ; System call number for 'write'
+  int 0x80  ; System call to output the "not prime" message
+
+loop_reset:
+  call newline_text  ; Call to print a newline after the result for each number
+  jmp loop_head  ; Continue with the next number in the loop
+
+newline_text:
+  mov rdx, nl_len  ; Set rdx to the length of the newline character
+  mov rcx, newline  ; Load the address of the newline character into rcx
+  mov rbx, 1  ; Set rbx to 1 for stdout
+  mov rax, 4  ; System call number for 'write'
+  int 0x80  ; System call to output the newline character
+  ret  ; Return from the newline_text function
+
+loop_exit:
+  xor rbp, rbp  ; Reset rbp as a clean-up step
+  mov rax, 1  ; System call number for 'exit'
+  int 0x80  ; Perform a system call to exit the program
